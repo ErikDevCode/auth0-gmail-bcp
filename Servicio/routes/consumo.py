@@ -10,5 +10,6 @@ router = APIRouter()
 @requires_auth
 async def obtener_consumos(request: Request):
     user = request.state.user
-    print("Usuario autenticado:", user["email"])
-    return extraer_consumos_desde_gmail()
+    email = user["email"]
+    print("Usuario autenticado:", email)
+    return await extraer_consumos_desde_gmail(email)

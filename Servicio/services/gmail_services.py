@@ -1,4 +1,3 @@
-# app/gmail_service.py
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -8,25 +7,31 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 import base64
 from utils.utils import parse_email_body, obtener_categoria, normalizar_fecha
+import webbrowser
+import anyio
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-def get_gmail_service():
-    creds = None
+def get_gmail_service(email: str) -> bool:
     base_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__))
     creds_path = os.path.join(base_dir, "credentials.json")
+    # Usa login_hint y prompt dentro de run_local_server
+    flow = InstalledAppFlow.from_client_secrets_file(
+        creds_path,
+        scopes=SCOPES
+    )
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=0)
+    # Este método ya genera la URL con login_hint y abre el navegador automáticamente
+    creds = flow.run_local_server(
+        port=0,
+        access_type="offline",
+        login_hint=email
+)
 
     return build('gmail', 'v1', credentials=creds)
 
-def extraer_consumos_desde_gmail():
-    service = get_gmail_service()
+def _extraer_consumos_sync(email: str) -> bool:
+    service = get_gmail_service(email)
     registros = []
     next_page_token = None
 
@@ -82,3 +87,7 @@ def extraer_consumos_desde_gmail():
             break
 
     return registros
+
+# Esta es la que debes llamar desde FastAPI
+async def extraer_consumos_desde_gmail(email_hint=None):
+    return await anyio.to_thread.run_sync(lambda: _extraer_consumos_sync(email_hint))
